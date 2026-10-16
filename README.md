@@ -45,6 +45,7 @@ The following are options that may be passed into the container in the form of e
 | -e MQTT_TOPIC_PREFIX | Prefix of MQTT topic set in Home Assistant, **Default: homeassistant/** | yes |
 | -e METER_IP | IP address of the itron meter. Useful for those that run iot devices on other vlans | yes |
 | -e METER_PORT | Port number of the meter, must be set if `METER_IP` is set. **Default: 8081**| yes |
+| -e METER_NAME | Home Assistant device name, also used to scope MQTT topics and entity IDs. Required to run one instance per meter against the same broker. **Default: Xcel Itron 5** | yes |
 | -e MQTT_USER | Username to authenticate to the MQTT server | yes |
 | -e MQTT_PASSWORD | Password to authenticate to the MQTT server | yes |
 | -e CERT_PATH | Path to cert file (within the container) if different than the default | yes |

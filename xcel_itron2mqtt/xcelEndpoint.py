@@ -30,6 +30,11 @@ class xcelEndpoint():
         self.device_info = device_info
 
         self._mqtt_topic_prefix = os.getenv('MQTT_TOPIC_PREFIX', 'homeassistant')
+        # Discovery topics only carry the endpoint name, so meters sharing a
+        # broker would overwrite each other. Scope them by METER_NAME when set;
+        # unset keeps the original topics so existing installs don't move.
+        meter_name = os.getenv('METER_NAME')
+        self._mqtt_node_prefix = f'{meter_name.replace(" ", "_")}_' if meter_name else ''
         self._mqtt_topic = None
         # Record all of the sensor state topics in an easy to lookup dict
         self._sensor_state_topics = {}
@@ -101,7 +106,7 @@ class xcelEndpoint():
         topic, and a dict to be used as the payload.
         """
         payload = deepcopy(details)
-        mqtt_friendly_name = self.name.replace(" ", "_")
+        mqtt_friendly_name = self._mqtt_node_prefix + self.name.replace(" ", "_")
         entity_type = payload.pop('entity_type')
         payload["state_topic"] = f'{self._mqtt_topic_prefix}/{entity_type}/{mqtt_friendly_name}/{sensor_name}/state'
         payload['name'] = f'{self.name} {sensor_name}'

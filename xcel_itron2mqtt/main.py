@@ -5,7 +5,7 @@ from pathlib import Path
 from xcelMeter import xcelMeter
 from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
 
-INTEGRATION_NAME = "Xcel Itron 5"
+INTEGRATION_NAME = os.getenv('METER_NAME', "Xcel Itron 5")
 
 LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(format='%(levelname)s: %(message)s', level=LOGLEVEL)
