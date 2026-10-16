@@ -5,6 +5,7 @@ import json
 import requests
 import logging
 import urllib3
+import threading
 import paho.mqtt.client as mqtt
 import xml.etree.ElementTree as ET
 from time import sleep
@@ -107,7 +108,11 @@ class xcelMeter():
         # Setup the MQTT server connection
         self.mqtt_server_address = os.getenv('MQTT_SERVER')
         self.mqtt_port = self.get_mqtt_port()
-        self.mqtt_client = self._setup_mqtt(self.mqtt_server_address, self.mqtt_port)
+        # Set from the MQTT thread when HA needs discovery again; the main loop
+        # does the publishing, so it never races endpoint setup below.
+        self._discovery_needed = threading.Event()
+        self.mqtt_client = self._setup_mqtt(self.mqtt_server_address, self.mqtt_port,
+                                            self._discovery_needed)
 
         # Create a new requests session based on the passed in ip address and port #
         self.requests_session = self._setup_session(creds, ip_address)
@@ -248,18 +253,34 @@ class xcelMeter():
         return mqtt_port
 
     @staticmethod
-    def _setup_mqtt(mqtt_server_address: str, mqtt_port: int) -> mqtt.Client:
+    def _setup_mqtt(mqtt_server_address: str, mqtt_port: int,
+                    discovery_needed: threading.Event) -> mqtt.Client:
         """
         Creates a new mqtt client to be used for the the xcelQuery
         objects.
 
+        Discovery configs are only retained if the broker persists them, and
+        some are not retained at all, so a restarted HA can come back with no
+        config for our sensors. discovery_needed is set whenever HA announces
+        itself on its status topic, and on every (re)connect in case the
+        broker restarted and lost the retained configs.
+
         Returns: mqtt.Client object
         """
+        status_topic = f"{os.getenv('MQTT_TOPIC_PREFIX', 'homeassistant')}/status"
+
         def on_connect(client, userdata, flags, rc):
             if rc == 0:
                 logger.info("Connected to MQTT Broker!")
+                client.subscribe(status_topic)
+                discovery_needed.set()
             else:
                 logger.error("Failed to connect, return code %d\n", rc)
+
+        def on_ha_status(client, userdata, message):
+            if message.payload == b'online':
+                logger.info("Home Assistant came online, re-sending discovery")
+                discovery_needed.set()
 
         # Check if a username/PW is setup for the MQTT connection
         mqtt_username = os.getenv('MQTT_USER')
@@ -269,6 +290,7 @@ class xcelMeter():
         if mqtt_username and mqtt_password:
             client.username_pw_set(mqtt_username, mqtt_password)
         client.on_connect = on_connect
+        client.message_callback_add(status_topic, on_ha_status)
         logger.info(f"MQTT connection details:")
         logger.info(f"MQTT_ADDRESS: {mqtt_server_address}")
         logger.info(f"MQTT_PORT: {mqtt_port}")
@@ -366,5 +388,12 @@ class xcelMeter():
         """
         while True:
             sleep(self.POLLING_RATE)
+            # Clear before sending so a status message arriving mid-send
+            # triggers another round rather than being lost.
+            if self._discovery_needed.is_set():
+                self._discovery_needed.clear()
+                self._send_mqtt_config()
+                for obj in self.endpoints:
+                    obj.mqtt_send_config()
             for obj in self.endpoints:
                 obj.run()

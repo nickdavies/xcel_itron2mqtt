@@ -40,7 +40,7 @@ class xcelEndpoint():
         self._sensor_state_topics = {}
 
         # Setup the rest of what we need for this endpoint
-        self._mqtt_send_config()
+        self.mqtt_send_config()
 
     @retry(stop=stop_after_attempt(5),
            wait=wait_exponential(multiplier=1, min=1, max=5),
@@ -122,7 +122,7 @@ class xcelEndpoint():
 
         return mqtt_topic, payload
 
-    def _mqtt_send_config(self) -> None:
+    def mqtt_send_config(self) -> None:
         """
         Homeassistant requires a config payload to be sent to more
         easily setup the sensor/device once it appears over mqtt
